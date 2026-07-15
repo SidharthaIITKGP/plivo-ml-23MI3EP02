@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Speedrun Summary</title>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#18202a;background:#f7f8fa;line-height:1.45}main{max-width:1080px;margin:0 auto;padding:32px 20px 56px}.hero{background:#102033;color:white;padding:28px;border-radius:8px}.hero h1{margin:0 0 8px;font-size:32px}.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:18px 0}.metric{background:white;border:1px solid #dde3ea;border-radius:8px;padding:16px}.metric strong{display:block;font-size:24px;color:#102033}.section{background:white;border:1px solid #dde3ea;border-radius:8px;padding:20px;margin-top:18px}h2{margin:0 0 12px;font-size:22px;color:#102033}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid #e4e8ee;padding:8px;text-align:left}th{background:#eef2f6}.ok{color:#0b6b3a;font-weight:700}.warn{color:#8a5300;font-weight:700}code{background:#eef2f6;padding:2px 5px;border-radius:4px}.small{font-size:13px;color:#526070}</style>
+</head>
+<body>
+<main>
+<section class="hero">
+<h1>2,000-Step Bilingual LLM Speedrun</h1>
+<p>Final checkpoint selected by controlled dev bits-per-byte experiments under the CPU-only, 2M-parameter, 2,000-step rules.</p>
+</section>
+<section class="metric-grid">
+<div class="metric"><span>Final dev bpb</span><strong>1.7543</strong></div>
+<div class="metric"><span>Baseline dev bpb</span><strong>2.3718</strong></div>
+<div class="metric"><span>Improvement</span><strong>0.6175</strong></div>
+<div class="metric"><span>Parameters</span><strong>1,923,240</strong></div>
+<div class="metric"><span>Optimizer steps</span><strong>2,000</strong></div>
+<div class="metric"><span>Tokenizer vocab</span><strong>512</strong></div>
+</section>
+<section class="section"><h2>Constraint Compliance</h2><p><span class="ok">Pass:</span> 2,000 optimizer steps, 1,923,240 parameters, CPU-only PyTorch training, only train_corpus.txt for model and tokenizer training, no pretrained weights, and no dependencies beyond PyTorch, NumPy, and the standard library.</p><p>The final command remains <code>python evaluate.py --checkpoint ckpt.pt --text_file &lt;any_text_file&gt;</code>.</p></section>
+<section class="section"><h2>Final Architecture</h2><p>The model is a decoder-only pre-LayerNorm Transformer with 4 blocks, 4 attention heads, embedding width 188, learned positional embeddings, GELU MLPs, context length 128, dropout 0.0, and untied input/output embeddings. Width 188 was chosen because vocab 512 with width 192 and untied embeddings exceeds the 2M parameter cap by 1,024 parameters, while width 188 stays safely below the cap.</p></section>
+<section class="section"><h2>Tokenizer</h2><p>The final tokenizer is a deterministic 512-token byte-level BPE trained only on <code>train_corpus.txt</code>. IDs 0..255 remain raw bytes, so arbitrary UTF-8 text has fallback coverage. Decoding concatenates token byte sequences and strict-decodes UTF-8, preserving <code>decode(encode(text)) == text</code>.</p><p>Token counts: raw dev 159,225 tokens, BPE dev 79,358 tokens. Raw train 7,318,592 tokens, BPE train 3,873,809 tokens.</p></section>
+<section class="section"><h2>Training Recipe</h2><p>Training used AdamW, beta2 0.95, weight decay 0.1, gradient clipping 1.0, batch size 32, peak LR 1.5e-3, 100 warmup steps, and cosine decay to 1.5e-4. The selected checkpoint is the EMA 0.99 version from a 2,000-step run with the same architecture and tokenizer.</p></section>
+<section class="section"><h2>Experiment Summary</h2><table><tr><th>Run</th><th>Main Change</th><th>Dev bpb</th><th>Decision</th></tr><tr><td>00</td><td>Untouched baseline, 2,000 steps</td><td>2.3718</td><td>Reference</td></tr><tr><td>S05</td><td>AdamW recipe after LR/batch tuning</td><td>2.7299</td><td>Kept</td></tr><tr><td>S08</td><td>Hybrid Devanagari-byte tokenizer</td><td>2.5987</td><td>Fallback</td></tr><tr><td>S09</td><td>512-token byte BPE</td><td>2.3751</td><td>Kept</td></tr><tr><td>S12</td><td>BPE 4x188 no-tie</td><td>2.3706</td><td>Kept</td></tr><tr><td>S14</td><td>BPE batch32 LR 1.5e-3</td><td>2.1593</td><td>Best screen</td></tr><tr><td>F01</td><td>Raw 2,000-step run</td><td>1.7621</td><td>Improved by EMA</td></tr><tr><td>F02</td><td>EMA 0.99 from F01 recipe</td><td>1.7543</td><td>Submitted</td></tr><tr><td>S19</td><td>Batch 64 screen</td><td>1.9869</td><td>Promising, not promoted before deadline</td></tr></table></section>
+<section class="section"><h2>What Failed</h2><p>Weight tying reduced parameters but hurt bpb at 160 width and also lost in the BPE 4x192 tied run. GPT-style scaled initialization was stable but slower in this short training regime. LR 2e-3 did not diverge, but it scored worse than LR 1.5e-3.</p></section>
+<section class="section"><h2>Generalization Argument</h2><p>The final model does not train on dev_eval.txt and uses byte fallback for unseen hidden-set characters. BPE improved both English and Hindi coverage by increasing effective context per byte, while the final model remains comfortably inside the parameter and step caps.</p></section>
+<section class="section"><h2>Human Versus Machine Contribution</h2><p>Machine assistance generated candidate implementations, parameter calculations, logging scaffolding, and documentation drafts. Human direction selected the legal tool constraints, approved the experimental strategy, monitored the visible runs, compared bpb results, and chose the final configuration based on controlled measurements and assignment priorities.</p><p class="small">Final diagnostics: full dev 1.7543 bpb, first half 1.5113, second half 2.0337, Hindi-containing paragraphs 1.1079, non-Hindi paragraphs 2.3631.</p></section>
+</main>
+</body>
+</html>
